@@ -70,15 +70,21 @@ class Parser(private val lexer: Lexer) {
     }
 
     private fun factor(): AST {
-        if (currToken.type == TokenType.INT) {
-            val value = currToken.lexeme.toInt()
+        if (currToken.type == TokenType.MINUS || currToken.type == TokenType.PLUS) {
+            val op = currToken.type
+            eat(currToken.type)
+            return UnaryOp(op, factor())
+        } else if (currToken.type == TokenType.INT) {
+            val res = Num(currToken.lexeme.toInt())
             eat(TokenType.INT)
-            return Num(value)
-        } else {
+            return res
+        } else if (currToken.type == TokenType.LPAREN) {
             eat(TokenType.LPAREN)
-            val node = expr()
+            val res = expr()
             eat(TokenType.RPAREN)
-            return node
+            return res
+        } else {
+            throw Exception("unknown symbol at 'factor' rule")
         }
     }
 
@@ -107,6 +113,7 @@ class Parser(private val lexer: Lexer) {
 
 sealed class AST
 class BinOp(val left: AST, val op: TokenType, val right: AST) : AST()
+class UnaryOp(val op: TokenType, val value: AST) : AST()
 class Num(val value: Int) : AST()
 
 class Interpreter(private val parser: Parser) {
@@ -116,6 +123,7 @@ class Interpreter(private val parser: Parser) {
     private fun visit(node: AST): Double = when (node) {
         is Num -> visitNum(node).toDouble()
         is BinOp -> visitBinOp(node)
+        is UnaryOp -> visitUnaryOp(node)
     }
 
     private fun visitBinOp(node: BinOp): Double = when (node.op) {
@@ -126,11 +134,17 @@ class Interpreter(private val parser: Parser) {
         else -> throw Exception("unknown binary operation")
     }
 
+    private fun visitUnaryOp(node: UnaryOp): Double = if (node.op == TokenType.MINUS) {
+        -visit(node.value)
+    } else {
+        visit(node.value)
+    }
+
     private fun visitNum(node: Num): Int = node.value
 }
 
 fun main(args: Array<String>) {
-    val lexer = Lexer("(7 + 5) * 2")
+    val lexer = Lexer("5 - - -- 2")
     val parser = Parser(lexer)
     val interpreter = Interpreter(parser)
     val res = interpreter.interprete()
